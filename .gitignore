@@ -1,0 +1,7 @@
+# this machine's setup: machine addresses and logins, widget settings
+machines.json
+widgets.json
+# runtime
+*.log
+.chrome-*/
+__pycache__/

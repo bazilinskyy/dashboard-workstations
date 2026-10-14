@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workstations</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚗</text></svg>">
+<style>
+:root { --bg:#f6f7f9; --card:#fff; --fg:#1b1f24; --muted:#667085; --line:#e4e7ec; --track:#eef0f3;
+  --cpu:#2563eb; --gpu:#16a34a; --ram:#9333ea; --warn:#d97706; --bad:#dc2626; --ok:#16a34a; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0f1115; --card:#171a21; --fg:#e6e8ec; --muted:#8b93a1;
+  --line:#272c36; --track:#232833; --cpu:#60a5fa; --gpu:#4ade80; --ram:#c084fc; --warn:#fbbf24; --bad:#f87171; --ok:#4ade80; } }
+* { box-sizing:border-box }
+body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif }
+header { padding:16px; display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline }
+h1 { margin:0; font-size:20px }
+.muted { color:var(--muted) } .small { font-size:12px }
+#pick { padding:0 16px 8px; display:flex; flex-wrap:wrap; gap:8px }
+.pill { background:var(--card); border:1px solid var(--line); border-radius:999px; padding:4px 12px }
+main { display:grid; gap:16px; padding:8px 16px 24px; grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr)) }
+.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px }
+.card.off { opacity:.6 }
+.card.virtual { border:1.5px dashed var(--muted); background:transparent }
+.tag.vm { color:var(--cpu) }
+.head { display:flex; justify-content:space-between; gap:8px; align-items:baseline }
+.head h2 { margin:0; font-size:17px }
+.dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--ok); margin-right:6px }
+.off .dot { background:var(--bad) }
+.tags { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 }
+.tag { font-size:12px; border-radius:6px; padding:1px 7px; background:var(--track) }
+.tag.warn { color:var(--warn) } .tag.bad { color:var(--bad) } .tag.good { color:var(--ok) }
+.row { display:grid; grid-template-columns:88px 1fr auto; gap:8px; align-items:center; margin:5px 0 }
+.row > span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.bar { height:8px; background:var(--track); border-radius:4px; overflow:hidden }
+.bar i { display:block; height:100% }
+.val { font-variant-numeric:tabular-nums; font-size:13px; text-align:right; white-space:nowrap }
+svg.spark { width:100%; height:44px; display:block; margin:6px 0 2px; background:var(--track); border-radius:6px }
+.legend span { margin-right:10px } .legend b { display:inline-block; width:10px; height:3px; vertical-align:middle; margin-right:4px }
+table { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px; table-layout:fixed }
+td, th { padding:3px 4px; border-top:1px solid var(--line); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+th { color:var(--muted); font-weight:500 } td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; width:62px }
+h3 { margin:12px 0 0; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted) }
+</style>
+</head>
+<body>
+<header><h1 id="title">Workstations</h1><span class="muted small" id="stamp">loading…</span></header>
+<div id="pick"></div>
+<main id="grid"></main>
+<script>
+let META = {};  // name -> addr, note, host (a VM's host), from machines.json via /config.json
+const GB = 1e9, esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pct = (v, c) => `<div class="bar"><i style="width:${Math.min(100, v || 0)}%;background:var(${c})"></i></div>`;
+const row = (k, v, c, txt) => `<div class="row"><span class="muted">${k}</span>${pct(v, c)}<span class="val">${txt}</span></div>`;
+const dur = s => s < 3600 ? `${Math.round(s / 60)} min` : s < 172800 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`;
+const gb = b => b >= 1e12 ? (b / 1e12).toFixed(1) + ' TB' : Math.round(b / GB) + ' GB';
+
+function spark(hist) {
+  if (hist.length < 2) return '<svg class="spark"></svg>';
+  const t0 = hist[0][0], span = Math.max(1, hist.at(-1)[0] - t0);
+  const line = (i, c) => `<polyline fill="none" stroke="var(${c})" stroke-width="1.5" vector-effect="non-scaling-stroke"
+    points="${hist.filter(h => h[i] != null).map(h => `${(h[0] - t0) / span * 200},${40 - h[i] * 0.38}`).join(' ')}"/>`;
+  return `<svg class="spark" viewBox="0 0 200 41" preserveAspectRatio="none">${line(3, '--ram')}${line(2, '--gpu')}${line(1, '--cpu')}</svg>
+    <div class="legend small muted"><span><b style="background:var(--cpu)"></b>CPU</span><span><b style="background:var(--gpu)"></b>GPU</span><span><b style="background:var(--ram)"></b>RAM</span>last ${dur(span)}</div>`;
+}
+
+function card(d) {
+  const m = META[d.name] || {}, g = (d.gpus || [])[0], now = Date.now() / 1000;
+  if (!d.mem_total) return `<section class="card off"><div class="head"><h2><span class="dot"></span>${d.name}</h2></div><p class="muted">${esc(d.error || 'no data yet')}</p></section>`;
+  const memUsed = d.mem_total - d.mem_avail, tags = [];
+  const guests = Object.keys(META).filter(k => META[k].host === d.name);
+  if (m.host) tags.push(`<span class="tag vm">virtual machine (WSL2) running on ${m.host}: same CPU, RAM and GPU</span>`);
+  if (guests.length) tags.push(`<span class="tag vm">also runs ${guests.join(', ')} (WSL2 virtual machine)</span>`);
+  if (!d.ok) tags.push(`<span class="tag bad">offline: ${esc(d.error)} · last seen ${dur(now - d.last_ok)} ago</span>`);
+  if (d.users?.length) tags.push(`<span class="tag">logged in: ${esc(d.users.join(', '))}</span>`);
+  if (d.tmux?.length) tags.push(`<span class="tag">tmux: ${esc(d.tmux.join(', '))}</span>`);
+  // Windows lists every app that draws on screen as a GPU process (without memory): there only those holding memory count
+  const gjobs = g ? g.procs.filter(p => p.mem || !d.os.startsWith('Windows')) : [], jobs = gjobs.length;
+  if (g) tags.push(g.util < 10 && !jobs ? '<span class="tag good">GPU free</span>' : `<span class="tag warn">GPU in use${jobs ? ` (${jobs} job${jobs > 1 ? 's' : ''})` : ''}</span>`);
+  if (d.reboot_required) tags.push('<span class="tag warn">reboot pending</span>');
+  if (d.swap_total && d.swap_used / d.swap_total > 0.8) tags.push('<span class="tag warn">swap nearly full</span>');
+  const load = d.load ? ` · load ${d.load.join(' ')}` : '';
+  return `<section class="card ${d.ok ? '' : 'off'} ${m.host ? 'virtual' : ''}">
+  <div class="head"><h2><span class="dot"></span>${m.host ? `<span class="muted">${m.host} ›</span> ` : ''}${d.name}</h2>
+    <span class="muted small">up ${dur(d.uptime)}</span></div>
+  <div class="muted small">${esc(m.addr)} · ${esc(d.os)} · ${d.cores} cores · ${gb(d.mem_total)} RAM${g ? ' · ' + esc(g.name.replace('NVIDIA GeForce ', '')) : ''} · ${esc(m.note)}</div>
+  <div class="tags">${tags.join('')}</div>
+  ${row('CPU', d.cpu, '--cpu', `${d.cpu.toFixed(0)}%${load}`)}
+  ${row('RAM', memUsed / d.mem_total * 100, '--ram', `${gb(memUsed)} / ${gb(d.mem_total)}`)}
+  ${d.swap_total ? row('Swap', d.swap_used / d.swap_total * 100, '--warn', `${(d.swap_used / GB).toFixed(1)} / ${(d.swap_total / GB).toFixed(1)} GB`) : ''}
+  ${g ? row('GPU', g.util, '--gpu', `${g.util ?? '?'}%${g.temp ? ` · ${g.temp}°C` : ''}${g.power ? ` · ${Math.round(g.power)} W` : ''}`) : ''}
+  ${g ? row('VRAM', g.mem_used / g.mem_total * 100, '--gpu', `${(g.mem_used / 1024).toFixed(1)} / ${(g.mem_total / 1024).toFixed(0)} GB`) : ''}
+  ${spark(d.hist || [])}
+  <h3>Disk free</h3>
+  ${d.disks.map(k => row(esc(k.mount.split('/').pop() || k.mount), (1 - k.free / k.total) * 100, k.free / k.total < 0.1 ? '--bad' : '--muted',
+      `${gb(k.free)} free of ${gb(k.total)}`)).join('')}
+  ${jobs ? `<h3>GPU processes</h3><table><tr><th>process</th><th>user</th><th class="n">VRAM</th></tr>
+    ${gjobs.map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.user)}</td><td class="n">${p.mem ? (p.mem / 1024).toFixed(1) + ' GB' : '–'}</td></tr>`).join('')}</table>` : ''}
+  <h3>Top processes</h3><table><tr><th>process</th><th>user</th><th class="n">CPU</th><th class="n">RAM</th></tr>
+    ${d.top.slice(0, 6).map(p => p.name === 'vmmemWSL' ? {...p, name: `${guests[0] || 'WSL'} VM`, user: 'all WSL jobs'} : p).map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.user)}</td><td class="n">${p.cpu.toFixed(0)}%</td><td class="n">${(p.rss / GB).toFixed(1)} GB</td></tr>`).join('')}</table>
+  <div class="muted small" style="margin-top:8px">CPU per process: 100% = one core · polled ${dur(now - d.polled)} ago</div>
+</section>`;
+}
+
+function pick(list) {
+  const on = list.filter(d => d.ok && d.mem_total);
+  const best = (f, xs) => xs.sort((a, b) => f(b) - f(a))[0];
+  const gpuFree = d => { const g = d.gpus[0]; return (g.mem_total - g.mem_used) / 1024 * (1 - g.util / 100); };
+  const idle = d => d.cores * (1 - d.cpu / 100);
+  const g = best(gpuFree, on.filter(d => d.gpus.length)), c = best(idle, [...on]);
+  return [
+    g && `<span class="pill">GPU job → <b>${g.name}</b> (${((g.gpus[0].mem_total - g.gpus[0].mem_used) / 1024).toFixed(0)} GB VRAM free, ${g.gpus[0].util}% busy)</span>`,
+    c && `<span class="pill">CPU job → <b>${c.name}</b> (~${idle(c).toFixed(0)} idle cores, ${gb(c.mem_avail)} RAM free)</span>`,
+  ].filter(Boolean).join('');
+}
+
+async function refresh() {
+  try {
+    const list = await (await fetch('status.json', {cache: 'no-store'})).json();
+    document.getElementById('grid').innerHTML = list.map(card).join('');
+    document.getElementById('pick').innerHTML = pick(list);
+    document.getElementById('stamp').textContent = `updated ${new Date().toLocaleTimeString()} · machines polled every minute · page refreshes every 30 s`;
+  } catch (e) { document.getElementById('stamp').textContent = 'dashboard server unreachable, retrying…'; }
+}
+async function configure() {
+  try {
+    const c = await (await fetch('config.json', {cache: 'no-store'})).json();
+    META = Object.fromEntries(c.machines.map(m => [m.name, m]));
+    document.title = c.title;
+    document.getElementById('title').textContent = `${c.icon || ''} ${c.title}`.trim();
+    const icon = document.querySelector('link[rel=icon]');
+    if (icon && c.icon) icon.href = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>${c.icon}</text></svg>`;
+  } catch (e) {}
+}
+configure().then(refresh); setInterval(refresh, 30000);
+</script>
+</body>
+</html>

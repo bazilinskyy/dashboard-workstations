@@ -1,0 +1,11 @@
+{
+  "title": "Lab workstations",
+  "icon": "🚗",
+  "machines": [
+    {"name": "hub", "local": true, "addr": "10.0.0.5", "note": "the machine running server.py"},
+    {"name": "gpu1", "ssh": ["-l", "alice", "10.0.0.6"], "addr": "10.0.0.6", "note": "Ubuntu, RTX 4080"},
+    {"name": "win1", "ssh": ["-l", "DOMAIN\\bob", "ws1.example.org"], "addr": "ws1.example.org", "note": "Windows desktop"},
+    {"name": "wsl1", "ssh": ["-p", "2222", "-l", "carol", "ws1.example.org"], "addr": "ws1.example.org:2222",
+     "note": "Ubuntu in WSL2", "host": "win1"}
+  ]
+}
