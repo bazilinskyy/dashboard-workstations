@@ -8,8 +8,8 @@
 <style>
 :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1f24; --muted:#667085; --line:#e4e7ec; --track:#eef0f3;
   --cpu:#2563eb; --gpu:#16a34a; --ram:#9333ea; --warn:#d97706; --bad:#dc2626; --ok:#16a34a; }
-@media (prefers-color-scheme: dark) { :root { --bg:#0f1115; --card:#171a21; --fg:#e6e8ec; --muted:#8b93a1;
-  --line:#272c36; --track:#232833; --cpu:#60a5fa; --gpu:#4ade80; --ram:#c084fc; --warn:#fbbf24; --bad:#f87171; --ok:#4ade80; } }
+:root[data-theme=dark]{ --bg:#0f1115; --card:#171a21; --fg:#e6e8ec; --muted:#8b93a1;
+  --line:#272c36; --track:#232833; --cpu:#60a5fa; --gpu:#4ade80; --ram:#c084fc; --warn:#fbbf24; --bad:#f87171; --ok:#4ade80; }
 * { box-sizing:border-box }
 body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif }
 header { padding:16px; display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline }
@@ -40,7 +40,29 @@ table { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px; 
 td, th { padding:3px 4px; border-top:1px solid var(--line); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 th { color:var(--muted); font-weight:500 } td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; width:62px }
 h3 { margin:12px 0 0; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted) }
+#theme{position:fixed;right:12px;bottom:12px;z-index:9999;padding:6px 10px;border:1px solid var(--line);
+border-radius:16px;background:var(--bg);color:var(--fg);font-size:13px;cursor:pointer}
 </style>
+<script>
+// dark unless switched to light, as on the review hub: a cookie, shared by all the pages of this host (any port)
+(function () {
+  const m = document.cookie.match(/(?:^|; )theme=(dark|light)/);
+  document.documentElement.dataset.theme = m ? m[1] : 'dark';
+  addEventListener('DOMContentLoaded', () => {
+    const b = document.createElement('button');
+    b.id = 'theme';
+    const label = () => { b.textContent = document.documentElement.dataset.theme === 'dark' ? '☀️ Light' : '🌙 Dark'; };
+    b.onclick = () => {
+      const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = t;
+      document.cookie = `theme=${t}; path=/; max-age=31536000; SameSite=Lax`;
+      label();
+    };
+    label();
+    document.body.appendChild(b);
+  });
+})();
+</script>
 </head>
 <body>
 <header><h1 id="title">Workstations</h1><span class="muted small" id="stamp">loading…</span></header>
