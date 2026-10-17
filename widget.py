@@ -3,7 +3,8 @@
     /          the web pages this user runs on localhost: link, description, start time, a stop button
     /machines  a compact view of the workstations dashboard (DASH, its /status.json and /config.json passed through)
     /active    whether anyone can see the screen (this user's session on screen, unlocked, display on)
-    /layout    where each widget's window is, so the next one docks below it
+    /layout    where each widget's window is (POST); /above?name=X: where the widget before X is, so X docks below it
+    /dock.js   the docking code the widgets share
 
 More widgets, data to pass through and names for local pages come from widgets.json (widgets.example.json); the
 environment variables DASH and REFRESH override it.
@@ -20,6 +21,8 @@ CONFIG = json.loads((HERE / 'widgets.json').read_text()) if (HERE / 'widgets.jso
 DASH = os.environ.get('DASH') or CONFIG.get('dash', 'http://127.0.0.1:8090')
 REFRESH = int(os.environ.get('REFRESH') or CONFIG.get('refresh', 3600))  # seconds; 3600 on a laptop (battery)
 LAYOUT = {}  # widget name -> x, y, h of its window: each docks below the one before it
+# top to bottom: widgets.json "order", else the local pages, the machines, then the "windows" of widgets.json
+ORDER = CONFIG.get('order') or ['pages', 'machines', *[w[0] for w in CONFIG.get('windows', [])]]
 PAGES = {'/': 'widget_pages.html', '/machines': 'widget_machines.html', **CONFIG.get('pages', {})}
 PROXIES = {'/status.json': DASH + '/status.json', '/config.json': DASH + '/config.json', **CONFIG.get('proxies', {})}
 NAMES = [  # command-line pattern -> description (before the page's <title>, which can be the same for many)
@@ -115,8 +118,12 @@ class Handler(BaseHTTPRequestHandler):
             for k, v in {'__REFRESH__': str(REFRESH), '__DASH__': DASH, **CONFIG.get('vars', {})}.items():
                 page = page.replace(k, v)
             return self.send(page, 'text/html; charset=utf-8')
-        if path == '/layout':  # ?name=pages: where that widget is, so the next one docks below it
-            return self.send(json.dumps(LAYOUT.get(self.path.partition('name=')[2], {})))
+        if path == '/above':  # ?name=machines: where the widget before it is ({} for the first)
+            name = self.path.partition('name=')[2]
+            i = ORDER.index(name) if name in ORDER else 0
+            return self.send(json.dumps(LAYOUT.get(ORDER[i - 1], {}) if i else {}))
+        if path == '/dock.js':
+            return self.send((HERE / 'dock.js').read_text(), 'text/javascript')
         if path == '/active':
             return self.send(json.dumps(dict(active=screen_active())))
         if path == '/pages.json':

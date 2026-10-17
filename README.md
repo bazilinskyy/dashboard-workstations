@@ -26,7 +26,8 @@ and one for a CPU job.
   - `/machines`: a compact view of the dashboard;
   - more widgets from `widgets.json`, e.g. a page another server serves, with its data passed through.
 
-  Each widget window fits its content and docks below the one before it. `/active` tells whether anyone can see the
+  Each widget window fits its content and docks below the one before it (`dock.js`), top to bottom in the `order` of
+  `widgets.json` (default: local pages, machines, then its `windows`). `/active` tells whether anyone can see the
   screen (this user's session on screen, unlocked, display on), so an animated widget can pause.
 - **`widgets.sh`** starts `widget.py` and opens the widgets as small Chrome app windows in a column at the top-left.
 

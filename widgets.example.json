@@ -5,5 +5,6 @@
   "pages": {"/globe": "http://10.0.0.5:8771/globe"},
   "proxies": {"/globe.json": "http://10.0.0.5:8771/globe.json"},
   "vars": {"__DATASET__": "http://10.0.0.5:8772/"},
-  "windows": [["globe", "globe", 330, 480]]
+  "windows": [["globe", "globe", 330, 480]],
+  "order": ["globe", "machines", "pages"]
 }

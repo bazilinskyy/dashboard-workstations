@@ -24,6 +24,7 @@ body { padding:7px 10px 6px; color:var(--fg); font:12px/1.3 system-ui,-apple-sys
 <div class="h"><a href="__DASH__/" target="_blank">🛻 Machines ↗</a>
   <span><b style="background:var(--cpu)"></b>cpu<b style="background:var(--ram)"></b>ram<b style="background:var(--gpu)"></b>gpu <span id="stamp"></span></span></div>
 <div id="list"><div class="r">loading…</div></div>
+<script src="dock.js"></script>
 <script>
 let META = {};  // name -> host (set for a virtual machine), from the dashboard's /config.json
 const GB = 1e9, esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -46,14 +47,6 @@ function fit() {
   height = document.body.scrollHeight + (outerHeight - innerHeight);
   if (Math.abs(outerHeight - height) > 1) resizeTo(outerWidth, height);
 }
-async function dock() {  // just below the pages widget, wherever it is and however tall; then tells the globe below
-  try {
-    const p = await (await fetch('layout?name=pages', {cache:'no-store'})).json();
-    const x = p.h ? p.x : screenX, y = p.h ? p.y + p.h : screenY;
-    if (screenX !== x || screenY !== y) moveTo(x, y);
-    await fetch('layout?name=machines', {method:'POST', body:JSON.stringify({x, y, h:Math.max(height, outerHeight)})});
-  } catch (e) {}
-}
 async function refresh() {
   try {
     if (!Object.keys(META).length)
@@ -63,9 +56,9 @@ async function refresh() {
     document.getElementById('list').innerHTML = list.map(row).join('');
     document.getElementById('stamp').textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
   } catch (e) { document.getElementById('stamp').textContent = 'dashboard unreachable'; }
-  fit(); dock();
+  fit(); dock('machines', height);
 }
 refresh(); setInterval(refresh, __REFRESH__ * 1000);
-if (__REFRESH__ <= 60) setInterval(dock, 5000);  // follow the pages widget closely on the mini; on the laptop with each refresh
+if (__REFRESH__ <= 60) setInterval(() => dock('machines', height), 5000);  // follow the one above closely on the mini
 addEventListener('focus', refresh);
 </script></body></html>

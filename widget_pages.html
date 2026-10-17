@@ -18,15 +18,17 @@ body { padding:7px 10px 6px; color:var(--fg); font:12px/1.3 system-ui,-apple-sys
 </style></head><body>
 <div class="h"><span>🏎️ Local pages</span><span id="stamp"></span></div>
 <div id="list"><div class="e">loading…</div></div>
+<script src="dock.js"></script>
 <script>
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const ago = t => { const s = Date.now() / 1000 - t; return s < 3600 ? `${Math.round(s / 60)}m` : s < 172800 ? `${Math.round(s / 3600)}h` : `${Math.round(s / 86400)}d`; };
 const date = t => new Date(t * 1000).toLocaleString([], {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
 let pages = [];
-function fit() {  // the window takes the height of its content; the machines widget docks below it (/layout)
-  const h = document.body.scrollHeight + (outerHeight - innerHeight);
-  if (Math.abs(outerHeight - h) > 1) resizeTo(outerWidth, h);
-  fetch('layout?name=pages', {method:'POST', body:JSON.stringify({x:screenX, y:screenY, h:Math.max(h, outerHeight)})}).catch(() => {});
+let height = 0;
+function fit() {  // the window takes the height of its content, below the widget before it (dock.js)
+  height = document.body.scrollHeight + (outerHeight - innerHeight);
+  if (Math.abs(outerHeight - height) > 1) resizeTo(outerWidth, height);
+  dock('pages', height);
 }
 async function refresh() {
   try { pages = await (await fetch('pages.json', {cache:'no-store'})).json(); } catch (e) { return; }
@@ -45,5 +47,6 @@ async function stop(i) {
   setTimeout(refresh, 800);
 }
 refresh(); setInterval(refresh, __REFRESH__ * 1000);
+if (__REFRESH__ <= 60) setInterval(() => dock('pages', height), 5000);  // follow the one above closely on the mini
 addEventListener('focus', refresh);
 </script></body></html>
