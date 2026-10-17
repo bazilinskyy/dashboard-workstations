@@ -29,14 +29,15 @@ let META = {};  // name -> host (set for a virtual machine), from the dashboard'
 const GB = 1e9, esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cell = (v, c) => v == null ? '<div class="c"></div>'
   : `<div class="c"><span>${Math.round(v)}</span><i><u style="width:${Math.min(100, v)}%;background:var(${c})"></u></i></div>`;
+const low = k => k.free < (['/', 'C:\\'].includes(k.mount) ? 100 : 50) * GB;  // as alerts.py: system disk < 100 GB, any disk < 50 GB
 const gb = b => b >= 1e12 ? (b / 1e12).toFixed(1) + ' TB' : Math.round(b / GB) + ' GB';
 function row(d) {
   if (!d.mem_total) return `<div class="r off"><span class="n"><span class="dot"></span>${d.name}</span></div>`;
   const g = (d.gpus || [])[0], jobs = g ? g.procs.filter(p => p.mem || !d.os.startsWith('Windows')).length : 0;  // Windows lists every app that draws
-  const low = d.disks.filter(k => k.free / k.total < 0.1);
+  const lowDisks = d.disks.filter(low);
   const tip = [d.os, d.users?.length ? 'logged in: ' + d.users.join(', ') : '', jobs ? `${jobs} GPU job${jobs > 1 ? 's' : ''}` : '',
     ...d.disks.map(k => `${k.mount}: ${gb(k.free)} free`), d.ok ? '' : 'offline: ' + d.error].filter(Boolean).join('\n');
-  return `<div class="r ${d.ok ? '' : 'off'} ${low.length ? 'warn' : ''} ${META[d.name]?.host ? 'vm' : ''}" title="${esc(tip)}">
+  return `<div class="r ${d.ok ? '' : 'off'} ${lowDisks.length ? 'warn' : ''} ${META[d.name]?.host ? 'vm' : ''}" title="${esc(tip)}">
     <span class="n"><span class="dot"></span>${META[d.name]?.host ? '↳ ' + d.name : d.name}</span>
     ${cell(d.cpu, '--cpu')}${cell(100 - 100 * d.mem_avail / d.mem_total, '--ram')}${cell(g ? g.util : null, '--gpu')}</div>`;
 }

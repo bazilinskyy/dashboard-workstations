@@ -74,6 +74,7 @@ const GB = 1e9, esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;'
 const pct = (v, c) => `<div class="bar"><i style="width:${Math.min(100, v || 0)}%;background:var(${c})"></i></div>`;
 const row = (k, v, c, txt) => `<div class="row"><span class="muted">${k}</span>${pct(v, c)}<span class="val">${txt}</span></div>`;
 const dur = s => s < 3600 ? `${Math.round(s / 60)} min` : s < 172800 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`;
+const low = k => k.free < (['/', 'C:\\'].includes(k.mount) ? 100 : 50) * GB;  // as alerts.py: system disk < 100 GB, any disk < 50 GB
 const gb = b => b >= 1e12 ? (b / 1e12).toFixed(1) + ' TB' : Math.round(b / GB) + ' GB';
 
 function spark(hist) {
@@ -113,7 +114,7 @@ function card(d) {
   ${g ? row('VRAM', g.mem_used / g.mem_total * 100, '--gpu', `${(g.mem_used / 1024).toFixed(1)} / ${(g.mem_total / 1024).toFixed(0)} GB`) : ''}
   ${spark(d.hist || [])}
   <h3>Disk free</h3>
-  ${d.disks.map(k => row(esc(k.mount.split('/').pop() || k.mount), (1 - k.free / k.total) * 100, k.free / k.total < 0.1 ? '--bad' : '--muted',
+  ${d.disks.map(k => row(esc(k.mount.split('/').pop() || k.mount), (1 - k.free / k.total) * 100, low(k) ? '--bad' : '--muted',
       `${gb(k.free)} free of ${gb(k.total)}`)).join('')}
   ${jobs ? `<h3>GPU processes</h3><table><tr><th>process</th><th>user</th><th class="n">VRAM</th></tr>
     ${gjobs.map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.user)}</td><td class="n">${p.mem ? (p.mem / 1024).toFixed(1) + ' GB' : '–'}</td></tr>`).join('')}</table>` : ''}
