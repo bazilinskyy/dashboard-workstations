@@ -65,9 +65,19 @@ def idle_minutes(t):
 
 def desktop(procs):
     """Windows: minutes since the last keyboard or mouse input in an active desktop session (console or remote; None
-    when none is active) and the names of the running programs, so jobs elsewhere can make way (wsl_yield.py)."""
+    when none is active) and the names of the running programs, so jobs elsewhere can make way (wsl_yield.py). The
+    idle time comes from desktop_idle.pyw in the desktop session when it is running; quser's shows the console session
+    as never idle, so it is only a fallback that errs on "in use"."""
     if os.name != "nt":
         return None
+    apps = sorted({p.info["name"] for p in procs if p.info["name"]})
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "desktop_idle.json")) as f:
+            d = json.load(f)
+        if time.time() - d["t"] < 120:
+            return dict(idle_min=int(d["idle_s"] // 60), apps=apps, source="desktop_idle")
+    except (OSError, ValueError, KeyError):
+        pass
     idle = []
     for line in run(["quser"]).splitlines()[1:]:
         parts = line.split()
@@ -76,7 +86,7 @@ def desktop(procs):
                 idle.append(idle_minutes(parts[parts.index("Active") + 1]))
             except ValueError:
                 pass
-    return dict(idle_min=min(idle) if idle else None, apps=sorted({p.info["name"] for p in procs if p.info["name"]}))
+    return dict(idle_min=min(idle) if idle else None, apps=apps, source="quser")
 
 
 def snapshot():

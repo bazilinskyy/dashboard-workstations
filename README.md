@@ -36,7 +36,9 @@ and one for a CPU job.
   them with SIGCONT once it has not been for 10 minutes. "In use" means a program of `ALWAYS` is running (e.g. a
   driving simulator's 3D engine, driven with a wheel and no keyboard), or there was keyboard or mouse input on its
   desktop (at the PC or over remote desktop) in the last 10 minutes. It reads this from the dashboard: `agent.py`
-  reports a Windows machine's `desktop` (idle minutes from `quser`, and the running programs). WSL started by a
+  reports a Windows machine's `desktop` (idle minutes, and the running programs). The idle time comes from
+  `desktop_idle.pyw`, run in the desktop session by a scheduled task at logon (`quser` shows the console session as
+  never idle, so it is only a fallback). WSL started by a
   background task cannot run Windows programs itself. `~/.wsl_yield.json` says what is paused and why. If the dashboard
   cannot be read, nothing changes, so jobs stay paused while it is down.
 
@@ -72,7 +74,9 @@ and one for a CPU job.
    dashboard's address; `refresh`: seconds between updates, e.g. 30 on an always-on screen and 3600 on a laptop) and run
    `./widgets.sh`. To show them all the time, run `widgets.sh` from a LaunchAgent at login.
 
-5. **WSL on a shared Windows PC (optional):** in its WSL, set `YIELD_HOST` (the Windows machine's name in
+5. **WSL on a shared Windows PC (optional):** on the PC, have `desktop_idle.pyw` (next to `agent.py`) started at
+   logon in the desktop session, e.g. a scheduled task "At log on", "Run only when user is logged on", action
+   `pyw.exe -3.13 C:\Users\<you>\compute-dash\desktop_idle.pyw`. In its WSL, set `YIELD_HOST` (the Windows machine's name in
    `machines.json`), `DASH` and `ALWAYS` (in the script) and keep `wsl_yield.py` running, e.g. with cron:
 
    ```text
