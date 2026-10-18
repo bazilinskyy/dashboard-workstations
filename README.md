@@ -31,6 +31,15 @@ and one for a CPU job.
   screen (this user's session on screen, unlocked, display on), so an animated widget can pause.
 - **`widgets.sh`** starts `widget.py` and opens the widgets as small Chrome app windows in a column at the top-left.
 
+- **`wsl_yield.py`** (standard library only) runs inside the WSL of a Windows PC that people also use at its desk. It
+  pauses that WSL user's jobs (python, ffmpeg, yt-dlp, rsync, ...) with SIGSTOP while Windows is in use, and resumes
+  them with SIGCONT once it has not been for 10 minutes. "In use" means a program of `ALWAYS` is running (e.g. a
+  driving simulator's 3D engine, driven with a wheel and no keyboard), or there was keyboard or mouse input on its
+  desktop (at the PC or over remote desktop) in the last 10 minutes. It reads this from the dashboard: `agent.py`
+  reports a Windows machine's `desktop` (idle minutes from `quser`, and the running programs). WSL started by a
+  background task cannot run Windows programs itself. `~/.wsl_yield.json` says what is paused and why. If the dashboard
+  cannot be read, nothing changes, so jobs stay paused while it is down.
+
 ## Setup
 
 1. **Each machine:** Python 3.9+ with `psutil` (`pip install --user psutil`), and `agent.py` in `~/compute-dash/`
@@ -62,6 +71,13 @@ and one for a CPU job.
 4. **Widgets (optional, macOS with Google Chrome):** copy `widgets.example.json` to `widgets.json` (`dash`: the
    dashboard's address; `refresh`: seconds between updates, e.g. 30 on an always-on screen and 3600 on a laptop) and run
    `./widgets.sh`. To show them all the time, run `widgets.sh` from a LaunchAgent at login.
+
+5. **WSL on a shared Windows PC (optional):** in its WSL, set `YIELD_HOST` (the Windows machine's name in
+   `machines.json`), `DASH` and `ALWAYS` (in the script) and keep `wsl_yield.py` running, e.g. with cron:
+
+   ```text
+   */5 * * * * pgrep -f "[w]sl_yield.py" >/dev/null || (cd $HOME/compute-dash && nohup /usr/bin/python3 -u wsl_yield.py >> wsl_yield.log 2>&1 &)
+   ```
 
 ## Notes
 

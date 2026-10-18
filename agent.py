@@ -54,6 +54,31 @@ def disks():
     return out
 
 
+def idle_minutes(t):
+    """quser's IDLE TIME as minutes: none or . (input just now), 5, 1:05, 2+03:10."""
+    if t in ("none", "."):
+        return 0
+    days, _, hm = t.rpartition("+")
+    h, _, m = hm.rpartition(":")
+    return int(days or 0) * 1440 + int(h or 0) * 60 + int(m)
+
+
+def desktop(procs):
+    """Windows: minutes since the last keyboard or mouse input in an active desktop session (console or remote; None
+    when none is active) and the names of the running programs, so jobs elsewhere can make way (wsl_yield.py)."""
+    if os.name != "nt":
+        return None
+    idle = []
+    for line in run(["quser"]).splitlines()[1:]:
+        parts = line.split()
+        if "Active" in parts[:-1]:
+            try:
+                idle.append(idle_minutes(parts[parts.index("Active") + 1]))
+            except ValueError:
+                pass
+    return dict(idle_min=min(idle) if idle else None, apps=sorted({p.info["name"] for p in procs if p.info["name"]}))
+
+
 def snapshot():
     procs = list(psutil.process_iter(["name", "username", "memory_info"]))
     for p in procs:
@@ -87,9 +112,10 @@ def snapshot():
         top_mem=sorted(top, key=lambda x: x["rss"], reverse=True)[:3],
         users=sorted({u.name.split("\\")[-1] for u in psutil.users()}
                      | {p["user"] for p in top if os.name == "nt" and p["name"] == "explorer.exe"}),
-        tmux=tmux, reboot_required=os.path.exists("/var/run/reboot-required"),
+        tmux=tmux, reboot_required=os.path.exists("/var/run/reboot-required"), desktop=desktop(procs),
     )
 
 
 if __name__ == "__main__":
+    assert [idle_minutes(t) for t in ("none", ".", "5", "1:05", "2+03:10")] == [0, 0, 5, 65, 3070]
     print(json.dumps(snapshot()))
