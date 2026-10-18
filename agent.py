@@ -75,7 +75,8 @@ def desktop(procs):
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "desktop_idle.json")) as f:
             d = json.load(f)
         if time.time() - d["t"] < 120:
-            return dict(idle_min=int(d["idle_s"] // 60), apps=apps, source="desktop_idle")
+            return dict(idle_min=int(d["idle_s"] // 60), active=d.get("active"), slots=d.get("slots"), apps=apps,
+                        source="desktop_idle")
     except (OSError, ValueError, KeyError):
         pass
     idle = []

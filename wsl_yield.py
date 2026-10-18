@@ -4,7 +4,9 @@ and resume them when it is not (stdlib only, Python 3.9+).
     python3 wsl_yield.py   # keeps going; cron restarts it when it is not running (README)
 
 Windows is "in use" while a program of ALWAYS runs there (a driving simulator, used with a wheel and not the keyboard)
-or while its desktop had keyboard or mouse input in the last IDLE_MIN minutes (on the PC or over remote desktop). The
+or while its desktop had keyboard or mouse input (on the PC or over remote desktop) in at least ACTIVE of the last 30
+20-second slots (10 min): a remote desktop window left open elsewhere sends a stray mouse move now and then, someone
+working fills most slots. Without the slot count (desktop_idle.pyw not running): input in the last IDLE_MIN minutes. The
 jobs resume once it has not been in use for RESUME_MIN minutes. What Windows does comes from the workstations
 dashboard (agent.py's "desktop" of the Windows host, polled every minute), as WSL started by a background task cannot
 run Windows programs itself. When the dashboard cannot be read, nothing changes.
@@ -24,7 +26,7 @@ import urllib.request
 DASH = os.environ.get('DASH', 'http://131.155.233.55:8090')
 HOST = os.environ.get('YIELD_HOST', 'win5090')                   # the Windows machine in the dashboard
 ALWAYS = {'UXDEngine-Win64-Shipping.exe', 'SCANeRstudio_Visual.exe'}  # SCANeR's 3D engine: a simulation is running
-IDLE_MIN, RESUME_MIN, EVERY_S = 10, 10, 30
+IDLE_MIN, RESUME_MIN, EVERY_S, ACTIVE = 10, 10, 30, 6
 JOBS = re.compile(r'(^|/)(python3?(\.\d+)?|ffmpeg|ffprobe|yt-dlp|rsync|node)( |$)')
 KEEP = re.compile(r'compute-dash/agent\.py|wsl_yield\.py|\.claude/')
 STATE = os.path.expanduser('~/.wsl_yield.json')
@@ -39,6 +41,10 @@ def in_use(status):
     running = sorted(ALWAYS & set(d.get('apps') or []))
     if running:
         return True, f'{", ".join(running)} running on {HOST}'
+    if d.get('active') is not None:
+        if d['active'] >= ACTIVE:
+            return True, f'{HOST} desktop used: input in {d["active"]} of the last {d.get("slots")} 20 s slots'
+        return False, f'{HOST} desktop hardly used: input in {d["active"]} of the last {d.get("slots")} 20 s slots'
     if d.get('idle_min') is not None and d['idle_min'] < IDLE_MIN:
         return True, f'{HOST} desktop used {d["idle_min"]} min ago'
     if d.get('idle_min') is None:
@@ -136,6 +142,10 @@ def _check():
         assert in_use(st)[0] is True  # a simulation, with nobody at the keyboard
         st[0]['desktop'] = dict(idle_min=40, apps=['SCANeRstudio.exe'])
         assert in_use(st)[0] is False  # the editor left open
+        st[0]['desktop'] = dict(idle_min=0, active=2, slots=30, apps=[])
+        assert in_use(st)[0] is False  # a stray mouse move over a remote desktop window just now
+        st[0]['desktop'] = dict(idle_min=0, active=25, slots=30, apps=[])
+        assert in_use(st)[0] is True  # someone working
         st[0]['polled'] = now - 600
         assert in_use(st)[0] is None  # the dashboard's news is too old
     finally:
