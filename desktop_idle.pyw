@@ -35,5 +35,10 @@ while True:
     before = tick
     with open(OUT + '.tmp', 'w') as f:
         json.dump(dict(t=time.time(), idle_s=round(idle), active=sum(slots), slots=len(slots)), f)
-    os.replace(OUT + '.tmp', OUT)
+    for _ in range(10):  # agent.py may be reading it just then: Windows refuses to replace an open file
+        try:
+            os.replace(OUT + '.tmp', OUT)
+            break
+        except PermissionError:
+            time.sleep(0.2)
     time.sleep(20)

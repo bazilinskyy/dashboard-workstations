@@ -71,9 +71,17 @@ def desktop(procs):
     if os.name != "nt":
         return None
     apps = sorted({p.info["name"] for p in procs if p.info["name"]})
+    d = {}
+    for _ in range(10):  # the helper replaces the file every 20 s, and Windows refuses a read just then
+        try:
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "desktop_idle.json")) as f:
+                d = json.load(f)
+            break
+        except PermissionError:
+            time.sleep(0.2)
+        except (OSError, ValueError):
+            break
     try:
-        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "desktop_idle.json")) as f:
-            d = json.load(f)
         if time.time() - d["t"] < 120:
             return dict(idle_min=int(d["idle_s"] // 60), active=d.get("active"), slots=d.get("slots"), apps=apps,
                         source="desktop_idle")
