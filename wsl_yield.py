@@ -15,6 +15,11 @@ The jobs are this user's processes whose command line matches JOBS (python, ffmp
 dashboard's agent and this script. Paused with SIGSTOP and resumed with SIGCONT, so they lose nothing; a job started
 while Windows is in use is paused at the next check. STATE (~/.wsl_yield.json) says what is paused and why, for the
 pipeline status page.
+
+Half, not all (user, 2026-10-22: "use 50% of the GPU"): while the desktop is used, the jobs whose working folder is
+KEEP_GOING (the first crowd worker and what it starts) keep going and only the others (the second worker) pause; a
+GPU cannot be capped per process in WSL, so one of the two workers is about half. A running simulation (ALWAYS) alike
+(user, 2026-10-22). STATE's "keeps" names the folder that keeps going.
 """
 import json
 import os
@@ -30,6 +35,7 @@ IDLE_MIN, RESUME_MIN, EVERY_S, ACTIVE = 10, 10, 30, 6
 JOBS = re.compile(r'(^|/)(python3?(\.\d+)?|ffmpeg|ffprobe|yt-dlp|rsync|node)( |$)')
 KEEP = re.compile(r'compute-dash/agent\.py|wsl_yield\.py|\.claude/')
 STATE = os.path.expanduser('~/.wsl_yield.json')
+KEEP_GOING = os.path.expanduser('~/crowd-routine')  # the worker that keeps going while the desktop is used
 
 
 def in_use(status):
@@ -67,6 +73,14 @@ def jobs():
     return out
 
 
+def folder(pid):
+    """The working folder of a process ('' when gone)."""
+    try:
+        return os.readlink(f'/proc/{pid}/cwd')
+    except OSError:
+        return ''
+
+
 def stopped(pid):
     try:
         return open(f'/proc/{pid}/stat').read().rsplit(')', 1)[1].split()[0] in ('T', 't')
@@ -102,13 +116,16 @@ def step(s, use, why, now):
         return dict(s, checked=now)
     if use:
         found = jobs()
-        signal_all(found, signal.SIGSTOP)
-        pids = sorted(set(s.get('pids', [])) | set(found))
-        return dict(s, paused=True, pids=pids, last_used=now, why=why, since=s.get('since') if s.get('paused') else now,
-                    checked=now)
+        keep = {p for p in found if folder(p) == KEEP_GOING}
+        signal_all(keep, signal.SIGCONT)  # paused by the pause-all of before: going again
+        signal_all(set(found) - keep, signal.SIGSTOP)
+        pids = sorted((set(s.get('pids', [])) | set(found)) - keep)
+        return dict(s, paused=True, pids=pids, last_used=now, keeps=KEEP_GOING,
+                    why=f'{why}; {KEEP_GOING} keeps going (half the GPU)',
+                    since=s.get('since') if s.get('paused') else now, checked=now)
     if (s.get('paused') or s.get('pids')) and now - s.get('last_used', 0) >= RESUME_MIN * 60:
         signal_all(s.get('pids', []), signal.SIGCONT)
-        return dict(s, paused=False, pids=[], why=why, since=None, checked=now)
+        return dict(s, paused=False, pids=[], keeps=None, why=why, since=None, checked=now)
     return dict(s, why=why if not s.get('paused') else s.get('why'), checked=now)
 
 
@@ -155,6 +172,18 @@ def _check():
     assert step(dict(s, pids=[999999999]), False, 'free', now + 600)['paused'] is False
     assert step(s, False, 'free', now + 600)['paused'] is False  # its jobs ended meanwhile: not paused any more
     assert step(s, None, '?', now) == dict(s, checked=now)
+    # Windows used (desktop or a simulation): the first worker keeps going (and goes on if paused), the second pauses
+    global jobs, folder, signal_all
+    real_jobs, real_folder, real_signal = jobs, folder, signal_all
+    sent = []
+    jobs = lambda: {1: 'python first', 2: 'python second'}  # noqa: E731
+    folder = lambda p: KEEP_GOING if p == 1 else KEEP_GOING + '-2'  # noqa: E731
+    signal_all = lambda pids, sig: sent.append((sorted(pids), sig))  # noqa: E731
+    try:
+        new = step(dict(paused=True, pids=[1, 2]), True, 'desktop used', now)
+        assert sent == [([1], signal.SIGCONT), ([2], signal.SIGSTOP)] and new['pids'] == [2] and new['keeps']
+    finally:
+        jobs, folder, signal_all = real_jobs, real_folder, real_signal
     assert JOBS.search('/home/crowd/crowd-routine/.venv/bin/python -u run_channels.py')
     assert JOBS.search('rsync -a src/ dst/') and not JOBS.search('bash -c cd ~/checks')
     assert KEEP.search('/home/crowd/compute-dash/.venv/bin/python compute-dash/agent.py')
