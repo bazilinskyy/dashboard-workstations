@@ -16,10 +16,9 @@ dashboard's agent and this script. Paused with SIGSTOP and resumed with SIGCONT,
 while Windows is in use is paused at the next check. STATE (~/.wsl_yield.json) says what is paused and why, for the
 pipeline status page.
 
-Half, not all (user, 2026-10-22: "use 50% of the GPU"): while the desktop is used, the jobs whose working folder is
-KEEP_GOING (the first crowd worker and what it starts) keep going and only the others (the second worker) pause; a
-GPU cannot be capped per process in WSL, so one of the two workers is about half. A running simulation (ALWAYS) alike
-(user, 2026-10-22). STATE's "keeps" names the folder that keeps going.
+The crowd workers keep going (user, 2026-10-22: both, the jaywalking analysis is what takes the GPU): while Windows
+is used (desktop or a simulation), the jobs whose working folder is one of KEEP_GOING (each crowd worker and what it
+starts) keep going and only the others pause. STATE's "keeps" lists those folders.
 
 Ended, not paused: a job of RESTART is ended while Windows is used, as a paused process keeps its GPU memory, and
 started again in its tmux session once Windows is free (and that session has closed); STATE's "restart" lists those.
@@ -39,7 +38,7 @@ IDLE_MIN, RESUME_MIN, EVERY_S, ACTIVE = 10, 10, 30, 6
 JOBS = re.compile(r'(^|/)(python3?(\.\d+)?|ffmpeg|ffprobe|yt-dlp|rsync|node)( |$)')
 KEEP = re.compile(r'compute-dash/agent\.py|wsl_yield\.py|\.claude/|sync_segmentation\.py')  # the last: a push
 STATE = os.path.expanduser('~/.wsl_yield.json')
-KEEP_GOING = os.path.expanduser('~/crowd-routine')  # the worker that keeps going while the desktop is used
+KEEP_GOING = [os.path.expanduser(f) for f in ('~/crowd-routine', '~/crowd-routine-2')]  # the workers, kept going
 # {tmux session: (its job's process, the command it is started again with)}: the jaywalking analysis Shadab and the
 # user run held most of the 5090's memory while paused (user, 2026-10-22); it saves each segment and skips the saved
 # ones when started again, and its run_six.sh pushes them once the analysis has ended
@@ -147,13 +146,13 @@ def step(s, use, why, now):
         signal_all(end, signal.SIGTERM)
         signal_all(end, signal.SIGCONT)  # a paused one ends too
         found = {p: c for p, c in found.items() if p not in end}
-        keep = {p for p in found if folder(p) == KEEP_GOING}
+        keep = {p for p in found if folder(p) in KEEP_GOING}
         signal_all(keep, signal.SIGCONT)  # paused by the pause-all of before: going again
         signal_all(set(found) - keep, signal.SIGSTOP)
         pids = sorted((set(s.get('pids', [])) | set(found)) - keep - end)
         return dict(s, paused=True, pids=pids, last_used=now, keeps=KEEP_GOING,
                     restart=sorted(set(s.get('restart', [])) | ended),
-                    why=f'{why}; {KEEP_GOING} keeps going (half the GPU)',
+                    why=f'{why}; the crowd workers keep going',
                     since=s.get('since') if s.get('paused') else now, checked=now)
     if s.get('restart') and now - s.get('last_used', 0) >= RESUME_MIN * 60:
         s = dict(s, restart=[n for n in s['restart'] if not restarted(n)])
@@ -206,20 +205,20 @@ def _check():
     assert step(dict(s, pids=[999999999]), False, 'free', now + 600)['paused'] is False
     assert step(s, False, 'free', now + 600)['paused'] is False  # its jobs ended meanwhile: not paused any more
     assert step(s, None, '?', now) == dict(s, checked=now)
-    # Windows used (desktop or a simulation): the first worker keeps going (and goes on if paused), the second pauses
+    # Windows used (desktop or a simulation): both crowd workers keep going (and go on if paused), another job pauses
     # ... and a RESTART job is ended, then started again once Windows is free and its old session has closed
     global jobs, folder, signal_all, tmux
     real_jobs, real_folder, real_signal, real_tmux = jobs, folder, signal_all, tmux
     sent, calls, alive = [], [], [True]
-    jobs = lambda: {1: 'python first', 2: 'python second',  # noqa: E731
+    jobs = lambda: {1: 'python first', 2: 'python second', 4: 'python a check',  # noqa: E731
                     3: '/home/crowd/alam/crowd-jaywalking/.venv/bin/python -u scripts/crowd/run_crowd_analysis.py'}
-    folder = lambda p: KEEP_GOING if p == 1 else KEEP_GOING + '-2'  # noqa: E731
+    folder = lambda p: {1: KEEP_GOING[0], 2: KEEP_GOING[1]}.get(p, '/home/crowd/checks')  # noqa: E731
     signal_all = lambda pids, sig: sent.append((sorted(pids), sig))  # noqa: E731
     tmux = lambda *a: calls.append(a) or (0 if a[0] == 'new-session' or alive[0] else 1)  # noqa: E731
     try:
         new = step(dict(paused=True, pids=[1, 2, 3]), True, 'desktop used', now)
-        assert sent == [([3], signal.SIGTERM), ([3], signal.SIGCONT), ([1], signal.SIGCONT), ([2], signal.SIGSTOP)]
-        assert new['pids'] == [2] and new['keeps'] and new['restart'] == ['alam-crowd'], new
+        assert sent == [([3], signal.SIGTERM), ([3], signal.SIGCONT), ([1, 2], signal.SIGCONT), ([4], signal.SIGSTOP)]
+        assert new['pids'] == [4] and new['keeps'] == KEEP_GOING and new['restart'] == ['alam-crowd'], new
         later = step(new, False, 'free', now + 600)
         assert later['restart'] == ['alam-crowd'] and not any(c[0] == 'new-session' for c in calls)  # still closing
         alive[0] = False
