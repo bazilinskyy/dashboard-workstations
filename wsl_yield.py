@@ -34,7 +34,9 @@ import urllib.request
 DASH = os.environ.get('DASH', 'http://131.155.233.55:8090')
 HOST = os.environ.get('YIELD_HOST', 'win5090')                   # the Windows machine in the dashboard
 ALWAYS = {'UXDEngine-Win64-Shipping.exe', 'SCANeRstudio_Visual.exe'}  # SCANeR's 3D engine: a simulation is running
-IDLE_MIN, RESUME_MIN, EVERY_S, ACTIVE = 10, 10, 30, 6
+# ACTIVE 12 (user, 2026-10-26; was 6): with nobody at win5090, only a RustDesk viewer connected, single stray inputs
+# came every 2-4 min, 6 slots in 10 min now and then, and the jaywalking analysis was ended 9 times in an evening
+IDLE_MIN, RESUME_MIN, EVERY_S, ACTIVE = 10, 10, 30, 12
 JOBS = re.compile(r'(^|/)(python3?(\.\d+)?|ffmpeg|ffprobe|yt-dlp|rsync|node)( |$)')
 KEEP = re.compile(r'compute-dash/agent\.py|wsl_yield\.py|\.claude/|sync_segmentation\.py')  # the last: a push
 STATE = os.path.expanduser('~/.wsl_yield.json')
@@ -194,6 +196,8 @@ def _check():
         assert in_use(st)[0] is False  # the editor left open
         st[0]['desktop'] = dict(idle_min=0, active=2, slots=30, apps=[])
         assert in_use(st)[0] is False  # a stray mouse move over a remote desktop window just now
+        st[0]['desktop'] = dict(idle_min=0, active=6, slots=30, apps=[])
+        assert in_use(st)[0] is False  # stray inputs every 2-4 min with only a RustDesk viewer (2026-10-26)
         st[0]['desktop'] = dict(idle_min=0, active=25, slots=30, apps=[])
         assert in_use(st)[0] is True  # someone working
         st[0]['polled'] = now - 600
