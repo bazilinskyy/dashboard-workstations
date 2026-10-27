@@ -80,7 +80,7 @@ and one for a CPU job.
    `machines.json`), `DASH` and `ALWAYS` (in the script) and keep `wsl_yield.py` running, e.g. with cron:
 
    ```text
-   */5 * * * * pgrep -f "[w]sl_yield.py" >/dev/null || (cd $HOME/compute-dash && nohup /usr/bin/python3 -u wsl_yield.py >> wsl_yield.log 2>&1 &)
+   */5 * * * * pgrep -f "^/usr/bin/python3 -u wsl_yield.py" >/dev/null || (cd $HOME/compute-dash && nohup /usr/bin/python3 -u wsl_yield.py >> wsl_yield.log 2>&1 &)
    ```
 
 ## Notes
