@@ -35,7 +35,8 @@ and one for a CPU job.
   pauses that WSL user's jobs (python, ffmpeg, yt-dlp, rsync, ...) with SIGSTOP while Windows is in use, and resumes
   them with SIGCONT once it has not been for 10 minutes. "In use" means a program of `ALWAYS` is running (e.g. a
   driving simulator's 3D engine, driven with a wheel and no keyboard), or there was keyboard or mouse input on its
-  desktop (at the PC or over remote desktop) in the last 10 minutes. It reads this from the dashboard: `agent.py`
+  desktop (at the PC or over remote desktop) in the last 10 minutes; game controllers do not count (a racing wheel
+  can send reports nonstop with nobody at it). It reads this from the dashboard: `agent.py`
   reports a Windows machine's `desktop` (idle minutes, and the running programs). The idle time comes from
   `desktop_idle.pyw`, run in the desktop session by a scheduled task at logon (`quser` shows the console session as
   never idle, so it is only a fallback). WSL started by a
