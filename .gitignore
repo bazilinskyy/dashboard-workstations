@@ -1,6 +1,7 @@
 # this machine's setup: machine addresses and logins, widget settings
 machines.json
 widgets.json
+*.bak*
 # runtime
 *.log
 .chrome-*/

@@ -32,16 +32,30 @@ and one for a CPU job.
 - **`widgets.sh`** starts `widget.py` and opens the widgets as small Chrome app windows in a column at the top-left.
 
 - **`wsl_yield.py`** (standard library only) runs inside the WSL of a Windows PC that people also use at its desk. It
-  pauses that WSL user's jobs (python, ffmpeg, yt-dlp, rsync, ...) with SIGSTOP while Windows is in use, and resumes
-  them with SIGCONT once it has not been for 10 minutes. "In use" means a program of `ALWAYS` is running (e.g. a
-  driving simulator's 3D engine, driven with a wheel and no keyboard), or there was keyboard or mouse input on its
-  desktop (at the PC or over remote desktop) in the last 10 minutes; game controllers do not count (a racing wheel
-  can send reports nonstop with nobody at it). It reads this from the dashboard: `agent.py`
-  reports a Windows machine's `desktop` (idle minutes, and the running programs). The idle time comes from
+  pauses that WSL user's jobs (python, ffmpeg, yt-dlp, rsync, node, CARLA's Linux server, SUMO, ...) with SIGSTOP while
+  Windows is in use, and resumes them with SIGCONT once it has not been for 10 minutes. "In use" means a program of
+  `ALWAYS` is running (a driving simulator's 3D engine or a CARLA server, driven with a wheel and no keyboard), or the
+  desktop had keyboard or mouse input (at the PC or over remote desktop) in at least 12 of the last 30 20-second slots;
+  a remote desktop window left open elsewhere sends a stray mouse move now and then, and game controllers do not count
+  (a racing wheel can send reports nonstop with nobody at it). It reads this from the dashboard: `agent.py` reports a
+  Windows machine's `desktop` (idle time, the slot count, and the running programs). The idle time comes from
   `desktop_idle.pyw`, run in the desktop session by a scheduled task at logon (`quser` shows the console session as
-  never idle, so it is only a fallback). WSL started by a
-  background task cannot run Windows programs itself. `~/.wsl_yield.json` says what is paused and why. If the dashboard
-  cannot be read, nothing changes, so jobs stay paused while it is down.
+  never idle, so it is only a fallback). WSL started by a background task cannot run Windows programs itself.
+  `~/.wsl_yield.json` says what is paused and why. If the dashboard cannot be read, nothing changes, so jobs stay
+  paused while it is down.
+
+  A simulation (an `ALWAYS` program, or the flag file a "free the GPU" shortcut on the Windows desktop makes before one
+  starts) frees the GPU instead, as a paused process keeps its GPU memory: jobs that hold GPU models are ended and their
+  runner waits on a pause file until the simulation is over. Jobs of `RESTART` are always ended rather than paused, and
+  started again in their tmux session once Windows is free.
+- **`win_yield.pyw`** (Windows, `psutil`) pauses background work on the Windows side at the same moments: the
+  processes of the background session (scheduled tasks, SSH) whose program or command line is in one of its `PROJECTS`
+  folders, and everything they started (e.g. a build's `msbuild`, `cl.exe` and `git`, or a CARLA server). What someone
+  starts at the desk is never paused. `wsl_yield.py` decides and writes `C:\Users\Public\wsl_yield.json` every 30 s;
+  `win_yield.pyw` suspends or resumes the work by it, and resumes everything when that file is more than 10 minutes old
+  (WSL down). It writes `C:\Users\Public\win_yield.json`: what it paused, and the programs running outside that
+  work, which `wsl_yield.py` uses for `ALWAYS`, so a CARLA server of the background work is not taken for someone
+  driving.
 
 ## Setup
 
@@ -83,6 +97,12 @@ and one for a CPU job.
    ```text
    */5 * * * * pgrep -f "^/usr/bin/python3 -u wsl_yield.py" >/dev/null || (cd $HOME/compute-dash && nohup /usr/bin/python3 -u wsl_yield.py >> wsl_yield.log 2>&1 &)
    ```
+
+   To pause work on the Windows side too, set `PROJECTS` in `win_yield.pyw` and keep it running elevated, as the
+   account the background work runs as (a process started with highest privileges can only be paused by one that has
+   them too), e.g. a scheduled task "Run whether user is logged on or not" with "Do not store password" (S4U), "Run
+   with highest privileges", triggers "At startup" and every 10 minutes, "Do not start a new instance", no time limit,
+   action `pyw.exe -3.13 C:\Users\<you>\compute-dash\win_yield.pyw`. Its log is `win_yield.log` next to it.
 
 ## Notes
 
