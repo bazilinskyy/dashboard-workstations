@@ -48,7 +48,8 @@ import urllib.request
 DASH = os.environ.get('DASH', 'http://131.155.233.55:8090')
 HOST = os.environ.get('YIELD_HOST', 'win5090')                   # the Windows machine in the dashboard
 ALWAYS = {'UXDEngine-Win64-Shipping.exe', 'SCANeRstudio_Visual.exe',  # SCANeR's 3D engine: a simulation is running
-          'CarlaUnreal-Win64-Shipping.exe'}  # CARLA 0.10.0 server (user, 2026-11-09: pause while CARLA runs)
+          'CarlaUnreal-Win64-Shipping.exe',  # CARLA 0.10.0 server (user, 2026-11-09: pause while CARLA runs)
+          'CarlaUE4-Win64-Shipping.exe'}  # CARLA 0.9.16 (2026-11-16: started at the desk, not seen as a simulation)
 # ACTIVE 12 (user, 2026-10-26; was 6): with nobody at win5090, only a RustDesk viewer connected, single stray inputs
 # came every 2-4 min, 6 slots in 10 min now and then, and the jaywalking analysis was ended 9 times in an evening
 IDLE_MIN, RESUME_MIN, EVERY_S, ACTIVE = 10, 10, 30, 12
