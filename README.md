@@ -34,7 +34,8 @@ and one for a CPU job.
 - **`wsl_yield.py`** (standard library only) runs inside the WSL of a Windows PC that people also use at its desk. It
   pauses that WSL user's jobs (python, ffmpeg, yt-dlp, rsync, node, CARLA's Linux server, SUMO, ...) with SIGSTOP while
   Windows is in use, and resumes them with SIGCONT once it has not been for 10 minutes. "In use" means a program of
-  `ALWAYS` is running (a driving simulator's 3D engine or a CARLA server, driven with a wheel and no keyboard), or the
+  `ALWAYS` is running (a driving simulator's 3D engine or a CARLA server, driven with a wheel and no keyboard; a CARLA
+  server only until the desktop has had no keyboard or mouse input for 90 minutes, as one is often left open), or the
   desktop had keyboard or mouse input (at the PC or over remote desktop) in at least 12 of the last 30 20-second slots;
   a remote desktop window left open elsewhere sends a stray mouse move now and then, and game controllers do not count
   (a racing wheel can send reports nonstop with nobody at it). It reads this from the dashboard: `agent.py` reports a

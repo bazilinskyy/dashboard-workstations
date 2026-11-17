@@ -3,7 +3,8 @@ and resume them when it is not (stdlib only, Python 3.9+).
 
     python3 wsl_yield.py   # keeps going; cron restarts it when it is not running (README)
 
-Windows is "in use" while a program of ALWAYS runs there (a driving simulator, used with a wheel and not the keyboard)
+Windows is "in use" while a program of ALWAYS runs there (a driving simulator, used with a wheel and not the keyboard;
+a CARLA server only while the desktop had keyboard or mouse input in the last CARLA_IDLE_MIN minutes)
 or while its desktop had keyboard or mouse input (on the PC or over remote desktop) in at least ACTIVE of the last 30
 20-second slots (10 min): a remote desktop window left open elsewhere sends a stray mouse move now and then, someone
 working fills most slots. Without the slot count (desktop_idle.pyw not running): input in the last IDLE_MIN minutes.
@@ -50,6 +51,10 @@ HOST = os.environ.get('YIELD_HOST', 'win5090')                   # the Windows m
 ALWAYS = {'UXDEngine-Win64-Shipping.exe', 'SCANeRstudio_Visual.exe',  # SCANeR's 3D engine: a simulation is running
           'CarlaUnreal-Win64-Shipping.exe',  # CARLA 0.10.0 server (user, 2026-11-09: pause while CARLA runs)
           'CarlaUE4-Win64-Shipping.exe'}  # CARLA 0.9.16 (2026-11-16: started at the desk, not seen as a simulation)
+# a CARLA server is a simulation only while the desktop had keyboard or mouse input in the last CARLA_IDLE_MIN minutes:
+# CARLA 0.9.16 was left open from 16:19 to 06:05 and kept the jobs paused all night (user, 2026-11-17: nobody drives
+# with only the wheel for more than 1.5 h); SCANeR's engine counts as long as it runs
+CARLA, CARLA_IDLE_MIN = {'CarlaUnreal-Win64-Shipping.exe', 'CarlaUE4-Win64-Shipping.exe'}, 90
 # ACTIVE 12 (user, 2026-10-26; was 6): with nobody at win5090, only a RustDesk viewer connected, single stray inputs
 # came every 2-4 min, 6 slots in 10 min now and then, and the jaywalking analysis was ended 9 times in an evening
 IDLE_MIN, RESUME_MIN, EVERY_S, ACTIVE = 10, 10, 30, 12
@@ -75,13 +80,21 @@ RESTART = {'alam-crowd16': (re.compile(r'scripts/crowd/run_crowd_analysis\.py'),
                             '~/alam/run_16bit.sh >> ~/alam/run16.log 2>&1')}
 
 
+def sims(desktop):
+    """The ALWAYS programs in a desktop status that count as a simulation (see CARLA_IDLE_MIN)."""
+    running = ALWAYS & set(desktop.get('apps') or [])
+    if desktop.get('idle_min') is not None and desktop['idle_min'] >= CARLA_IDLE_MIN:
+        running -= CARLA
+    return sorted(running)
+
+
 def in_use(status):
     """(True/False, why) for the Windows host in the dashboard's status, or (None, why) when it cannot tell."""
     m = next((m for m in status if m.get('name') == HOST), None)
     if not m or not m.get('ok') or time.time() - m.get('polled', 0) > 300 or m.get('desktop') is None:
         return None, f'no recent desktop status of {HOST}'
     d = m['desktop']
-    running = sorted(ALWAYS & set(d.get('apps') or []))
+    running = sims(d)
     if running:
         return True, f'{", ".join(running)} running on {HOST}'
     if d.get('active') is not None:
@@ -99,7 +112,7 @@ def simulation(status, s, now):
     """(True/False, why): a simulation runs on HOST or FLAG says one is coming. FLAG is removed once the simulation
     seen since it was made has ended, or after FLAG_H hours. Notes in s when an ALWAYS program was last seen."""
     m = next((m for m in status or [] if m.get('name') == HOST), None)
-    running = sorted(ALWAYS & set(((m or {}).get('desktop') or {}).get('apps') or []))
+    running = sims((m or {}).get('desktop') or {})
     if running:
         s['sim_seen'] = now
         return True, f'{", ".join(running)} running on {HOST}'
@@ -310,6 +323,12 @@ def _check():
         assert in_use(st)[0] is True  # a simulation, with nobody at the keyboard
         st[0]['desktop'] = dict(idle_min=40, apps=['SCANeRstudio.exe'])
         assert in_use(st)[0] is False  # the editor left open
+        st[0]['desktop'] = dict(idle_min=40, apps=['CarlaUE4-Win64-Shipping.exe'])
+        assert in_use(st)[0] is True  # CARLA, driven with the wheel
+        st[0]['desktop'] = dict(idle_min=95, active=0, slots=30, apps=['CarlaUE4-Win64-Shipping.exe'])
+        assert in_use(st)[0] is False  # CARLA left open
+        st[0]['desktop'] = dict(idle_min=600, apps=['UXDEngine-Win64-Shipping.exe'])
+        assert in_use(st)[0] is True  # SCANeR has no limit
         st[0]['desktop'] = dict(idle_min=0, active=2, slots=30, apps=[])
         assert in_use(st)[0] is False  # a stray mouse move over a remote desktop window just now
         st[0]['desktop'] = dict(idle_min=0, active=6, slots=30, apps=[])
